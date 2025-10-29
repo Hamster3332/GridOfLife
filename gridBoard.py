@@ -7,37 +7,91 @@ class GridTypes:
     AnimalOnPlant = 3
 
 class GridState:
-    def __init__(s, pos: tuple[int, int] = (0, 0)):
+    def __init__(s, pos: tuple[int, int] = (0, 0), Grid = None):
+        s.grid : GridBoard = Grid
+        s.pos = pos
+        #   General
         s.type = GridTypes.Ground
-        s.Old: tuple[int, int] = pos
-        s.Color: pg.Color = pg.Color(99, 62, 32)
-        s.WaterPercent: float = random.random() / 2
-    
-    def tick(s, New,  data):
-        if s.type == GridTypes.Plant:
-            New.WaterPercent -= max(0.02 + random.random() * 0.02 + (s.Color.g )/500 - (s.Color.r)/500, 0.01)
-        else:
-            New.WaterPercent += 0.1
-        New.WaterPercent = max(min(New.WaterPercent, 0.9), 0)
-        if New.WaterPercent < random.random() / 4:
-            New.type = GridTypes.Ground
-            #New.Color = pg.Color(99, 62, 32)
+        s.waterPercent: float = 0.5
+        s.typeChanged = False
+        s.rainAmount  = 0
+        s.rainTime = 0
+        #   Plant
+        s.hasPlant = False ## coming soon
+        s.parent: tuple[int, int] = pos
+        s.color: pg.Color = pg.Color(99, 62, 32)
+        s.plantLife = 0
 
-    def canGrow(s, Color : pg.Color):
-        return (s.type == GridTypes.Ground and
-        s.WaterPercent > random.random() and
-        (255 - (Color.r * random.random())) / 255 > s.WaterPercent)
+        s.rainAmount  = 0
+        s.rainTime = 0
     
-    def copy(s):
-        State = GridState()
-        State.type = s.type
-        State.Old = s.Old
-        State.Color = s.Color
-        State.WaterPercent = s.WaterPercent
-        return State
+    def copy(s, grid, subTick):
+        state = GridState(s.pos, grid)
+        #   General
+        state.type = s.type
+        state.waterPercent = s.waterPercent
+        if subTick: state.typeChanged = s.typeChanged
+        else: state.typeChanged = False
+        state.rainAmount = s.rainAmount
+        state.rainTime = s.rainTime
+        #   Plant
+        state.hasPlant = s.hasPlant
+        state.parent = s.parent
+        state.color = s.color
+        state.plantLife = s.plantLife
+        return state
+    
+    def setPlant(s, Color : pg.Color, parent : tuple[int, int] = (0, 0)):
+        if True:#not s.typeChanged and not s.hasPlant:
+            s.type = GridTypes.Plant
+            s.hasPlant = True
+            s.typeChanged = True
+            s.plantLife = 1
+            s.parent = parent
+            s.color = Color
+            return True
+        return False
+    
+    def removePlant(s):
+        if not s.typeChanged and s.hasPlant:
+            s.type = GridTypes.Ground
+            s.typeChanged = True
+            s.hasPlant = False
+            return True
+        return False
+
+    def tick(s, New):
+        new : GridState = New
+        new.waterPercent = s.waterPercent
+        for pos in s.grid.adjacent(s.pos):
+            new.waterPercent -= (s.waterPercent - s.grid.Get(pos).waterPercent)/4
+
+        if s.type == GridTypes.Plant:
+            new.plantLife = s.plantLife - 0.05
+            new.waterPercent -= (0.01 + random.random() * 0.005)
+        
+        new.waterPercent = max(min(new.waterPercent,1),0)
+
+        if (new.waterPercent < (random.random() / 10) or
+                s.plantLife <= 0):
+            new.removePlant()
+
+    def canPlantMakeSapling(s, New):
+        return (s.hasPlant and
+                s.waterPercent >= 0.1 and
+                New.waterPercent >= 0.1 and
+                random.random() < 0.2 and False)
+    
+    def plantMakeSapling(s, new):
+        New : GridState = new
+        New.waterPercent -= 0.1
+    
+    def canPlantGrow(s, Color : pg.Color):
+        return not s.hasPlant
+    
 
 class GridBoard:
-    nab = [(0, 1),(1, 0),(0, -1),(-1, 0)]
+    nab = [(0, 1),(1, 0),(0, -1),(-1, 0)]#, (1, 6),(1, -1),(-1, -2),(-1, 5)]
     def __init__(s, width, height):
         s.board = []
         s.Width = width
@@ -46,21 +100,20 @@ class GridBoard:
         for x in range(width):
             row = []
             for y in range(height):
-                row.append(GridState((x, y)))
+                row.append(GridState((x, y), s))
             s.board.append(row)
 
     def populate(s):
         for pos in s:
-            if (random.random() < 0.05):
-                s.Get(pos).type = GridTypes.Plant
-                s.Get(pos).Color = pg.Color(random.randint(0, 100),
+            if (random.random() < 0):
+                s.Get(pos).setPlant(pg.Color(random.randint(0, 100),
                                       random.randint(30, 200),
-                                      random.randint(0, 50))
+                                      random.randint(0, 50)), pos)
 
-    def copy(s):
+    def copy(s, subTick = False):
         grid = GridBoard(s.Width, s.Height)
         for pos in s:
-            grid.Set(pos, s.Get(pos).copy())
+            grid.Set(pos, s.Get(pos).copy(grid, subTick))
         return grid
     
     def contained(s, pos):
@@ -73,7 +126,7 @@ class GridBoard:
             if s.contained(newPos): yield newPos
 
     def wrap(s, pos):
-        return ((pos[0] + s.Width) % s.Width, (pos[1] + s.Height) % s.Height)
+        return (pos[0] % s.Width, pos[1] % s.Height)
 
     def Get(s, pos, y = None) -> GridState:
         if y is None:
