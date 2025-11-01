@@ -1,5 +1,8 @@
 import random
 import pygame as pg
+import math
+from mathinnate import *
+
 class GridTypes:
     Ground = 0
     Plant = 1
@@ -12,12 +15,15 @@ class GridState:
         s.pos = pos
         #   General
         s.type = GridTypes.Ground
-        s.waterPercent: float = 0.5
-        s.typeChanged = False
+        s.height = 0 #(pos[0] % 10) / 10
         s.rainAmount  = 0
         s.rainTime = 0
+        #   Water
+        s.waterPercent: float = 0.5
+        s.totalFlow: float = 0
         #   Plant
         s.hasPlant = False ## coming soon
+        s.plantChange = False ## coming soon
         s.parent: tuple[int, int] = pos
         s.color: pg.Color = pg.Color(99, 62, 32)
         s.plantLife = 0
@@ -29,23 +35,31 @@ class GridState:
         state = GridState(s.pos, grid)
         #   General
         state.type = s.type
-        state.waterPercent = s.waterPercent
-        if subTick: state.typeChanged = s.typeChanged
-        else: state.typeChanged = False
+        state.height = s.height
         state.rainAmount = s.rainAmount
         state.rainTime = s.rainTime
+
+        #   Water
+        s.waterPercent: float = s.waterPercent
+        #s.totalFlow: float = 
+
         #   Plant
         state.hasPlant = s.hasPlant
+
+        if subTick: state.plantChange = s.plantChange
+        else: state.plantChange = False
+
         state.parent = s.parent
         state.color = s.color
         state.plantLife = s.plantLife
         return state
     
     def setPlant(s, Color : pg.Color, parent : tuple[int, int] = (0, 0)):
-        if True:#not s.typeChanged and not s.hasPlant:
+        if not s.plantChange and not s.hasPlant:
             s.type = GridTypes.Plant
+
             s.hasPlant = True
-            s.typeChanged = True
+            s.plantChange = True
             s.plantLife = 1
             s.parent = parent
             s.color = Color
@@ -53,34 +67,67 @@ class GridState:
         return False
     
     def removePlant(s):
-        if not s.typeChanged and s.hasPlant:
+        if not s.plantChange and s.hasPlant:
             s.type = GridTypes.Ground
-            s.typeChanged = True
+
             s.hasPlant = False
+            s.plantChange = True
             return True
         return False
 
+    def waterPreTick(s):
+        s.totalFlow = 0
+        for pos in s.grid.adjacent(s.pos):
+            adjacentstate = s.grid.Get(pos)
+            s.totalFlow += ((s.waterPercent + s.height) -
+                    (adjacentstate.waterPercent + adjacentstate.height)) / 4
+
+    def calcWaterScalar(s):
+        scalar = 1
+        spaceLeft = 1 - s.waterPercent - s.height
+        if spaceLeft < 0: print("what")
+        if (s.totalFlow <= 0.0001 and s.totalFlow >= - 0.0001 and
+            s.waterPercent <= 0.0001):
+            s.totalFlow = 0
+        elif (s.waterPercent < s.totalFlow):
+            scalar = s.waterPercent / s.totalFlow
+        elif (spaceLeft < (- s.totalFlow)):
+            scalar = spaceLeft / (- s.totalFlow)
+        return scalar
+    
     def tick(s, New):
         new : GridState = New
         new.waterPercent = s.waterPercent
+        scalar = s.calcWaterScalar()
+
         for pos in s.grid.adjacent(s.pos):
-            new.waterPercent -= (s.waterPercent - s.grid.Get(pos).waterPercent)/4
+            adjacentstate = s.grid.Get(pos)
+            scalar2 = min(adjacentstate.calcWaterScalar(), scalar)
+            change = ((s.waterPercent + s.height) -
+                    (adjacentstate.waterPercent + adjacentstate.height))/4
+            change = max(min(change ,s.waterPercent),- adjacentstate.waterPercent)
+            new.waterPercent -= change * scalar2
 
         if s.type == GridTypes.Plant:
             new.plantLife = s.plantLife - 0.05
             new.waterPercent -= (0.01 + random.random() * 0.005)
         
-        new.waterPercent = max(min(new.waterPercent,1),0)
+        if new.rainTime > 0:
+            new.rainTime -= 1
+            new.waterPercent += new.rainAmount
+
+        new.waterPercent = max(min(new.waterPercent, 0.999 - s.height), 0)
 
         if (new.waterPercent < (random.random() / 10) or
                 s.plantLife <= 0):
             new.removePlant()
 
-    def canPlantMakeSapling(s, New):
+    def canPlantMakeSapling(s, New, state):
         return (s.hasPlant and
                 s.waterPercent >= 0.1 and
                 New.waterPercent >= 0.1 and
-                random.random() < 0.2 and False)
+                abs(s.height - state.height) < 0.4 and
+                random.random() < 0.2)
     
     def plantMakeSapling(s, new):
         New : GridState = new
@@ -104,8 +151,57 @@ class GridBoard:
             s.board.append(row)
 
     def populate(s):
+        
+        for i in range(round(s.Width / 4)):
+            startPos = (
+            random.randint(0, s.Width - 1), random.randint(0, s.Height - 1))
+            facing = math.radians(random.randint(0, 359))
+            mountainrangeLength = random.randint(1, s.Width) * (random.random() / 4 + 0.75)
+            mountainrangeLength = round(mountainrangeLength)
+
+            poss: list[tuple[int, int]] = []
+            currentPos = startPos
+            for i in range(mountainrangeLength):
+                x, y = round(currentPos[0]), round(currentPos[1])
+                if (x, y) not in poss and random.random() < 0.9:
+                    poss.append((x, y))
+
+                facingVector = (math.cos(facing), math.sin(facing))
+                facing += (random.random() - 0.5) / 3
+
+                currentPos = addPos(currentPos, facingVector)
+
+            neighbrous = []
+            for pos in poss:
+                for newPos in s.adjacent(pos):
+                    if newPos not in poss:
+                        neighbrous.append(newPos)
+            
+            for n in neighbrous:
+                if random.random() < 0.7:
+                    poss.append(n)
+                for newPos in s.adjacent(n):
+                    if (newPos not in poss
+                    and newPos not in neighbrous
+                    and random.random() < 0.5):
+                        poss.append(newPos)
+
+            for pos in poss:
+                state: GridState = s.Get(s.wrap(pos))
+                state.height += 0.3
+                state.height = min(state.height, 0.9999)
+
         for pos in s:
-            if (random.random() < 0):
+            s.Get(pos).waterPercent = max(min(s.Get(pos).waterPercent, 1 - s.Get(pos).height), 0)
+        for i in range(20):
+            for pos in s:
+                s.Get(pos).waterPreTick()
+
+            for pos in s:
+                s.Get(pos).tick(s.Get(pos))
+                
+        for pos in s:
+            if (random.random() < 0.1):
                 s.Get(pos).setPlant(pg.Color(random.randint(0, 100),
                                       random.randint(30, 200),
                                       random.randint(0, 50)), pos)

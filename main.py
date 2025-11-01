@@ -2,6 +2,7 @@ import pygame as pg
 import random, math
 from gridBoard import *
 from mathinnate import *
+import mathiShapes as sh
 
 pg.init()
 
@@ -9,6 +10,11 @@ WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 1400
 GRID_WIDTH = 10
 GRID_HEIGHT = 10
+
+## TODO
+# - Schatten von Bergen
+# - GRID_WIDTH und GRID_HEIGHT wenn unterschiedlich skalierung und pos fix
+# - Tiere
 
 window = pg.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 
@@ -35,68 +41,90 @@ class Data:
     def __init__(s):
         s.board: GridBoard = GridBoard(GRID_WIDTH, GRID_HEIGHT)
         s.boardOld: GridBoard = GridBoard(GRID_WIDTH, GRID_HEIGHT)
-        s.outLineRects: list[pg.Rect] = []
-        s.innerRects: list[pg.Rect] = []
+        s.outLineRects: list[sh.Rect] = []
+        s.innerRects: list[sh.Rect] = []
         s.simulationTimer: int = 0
         s.board.populate()
         s.framePercent: float = 0
         s.SimTickTime = 1000
+        s.NewSimTickTime = 1000
 
         s.cellWidth = WINDOW_WIDTH / GRID_WIDTH
         s.cellHeight = WINDOW_HEIGHT / GRID_HEIGHT
-        s.cellMarginX = s.cellWidth / 10
-        s.cellMarginY = s.cellHeight / 10
+        s.cellMarginX = s.cellWidth / 6
+        s.cellMarginY = s.cellHeight / 6
 
-        s.rainingChance = 1
-        s.rainingStrength = 5
+        s.rainingChance = 0.1
+        s.rainingStrength = 40
 
 def simulationTick(data : Data):# 1/s
     grid : GridBoard = data.board
     gridNew : GridBoard = data.board.copy()
 
     if random.random() < data.rainingChance:
-        centrePos = (
+        startPos = (
             random.randint(0, GRID_WIDTH - 1), random.randint(0, GRID_HEIGHT - 1))
-        rainingPositions = [centrePos]
-        currentPos = centrePos
-        rainingExtend: float = 1.0
-        neighbours = []
-        while True:
-            if rainingExtend <= 0:
-                break
+        facing = math.radians(random.randint(0, 359))
+        cloudLength = data.rainingStrength * (random.random() / 4 + 0.75)
+        cloudLength = round(cloudLength)
 
-            for n in grid.adjacent(currentPos):
-                if (n not in neighbours) and (n not in rainingPositions):
-                    neighbours.append(n)
-                
-            random.shuffle(neighbours)
-            currentPos = neighbours[0]
-            rainingPositions.append(neighbours.pop())
-            rainingExtend -= 1 / data.rainingStrength
+        rainingPositions: list[tuple[int, int]] = []
+        currentPos = startPos
+        for i in range(cloudLength):
+            x, y = round(currentPos[0]), round(currentPos[1])
+            if (x, y) not in rainingPositions and random.random() < 0.9:
+                rainingPositions.append((x, y))
 
+            facingVector = (math.cos(facing), math.sin(facing))
+            facing += (random.random() - 0.5) / 3
+
+            currentPos = addPos(currentPos, facingVector)
+
+        neighbrous = []
+        for pos in rainingPositions:
+            for newPos in gridNew.adjacent(pos):
+                if newPos not in rainingPositions:
+                    neighbrous.append(newPos)
+        
+        for n in neighbrous:
+            if random.random() < 0.7:
+                rainingPositions.append(n)
+            for newPos in gridNew.adjacent(n):
+                if (newPos not in rainingPositions
+                   and newPos not in neighbrous
+                   and random.random() < 0.5):
+                    rainingPositions.append(newPos)
+
+        RA = random.random() / 5
+        RT = random.randint(5,40)
         for position in rainingPositions:
-            gridNew.Get(position).setPlant((20, 20, 20))
+            state: GridState = gridNew.Get(gridNew.wrap(position))
+            state.rainAmount = RA
+            state.rainTime = RT
+
+    for pos in grid:
+        grid.Get(pos).waterPreTick()
 
     for pos in grid:
         
         grid.Get(pos).tick(gridNew.Get(pos))
-        gridNew.Get(pos).removePlant()
+        #gridNew.Get(pos).removePlant()
         stateNew = gridNew.Get(pos)
         state = grid.Get(pos)
         possibleOld = []
         grassNabu = False
         for posi in grid.adjacent(pos):
-            if grid.Get(posi).canPlantMakeSapling(gridNew.Get(posi)):
+            if grid.Get(posi).canPlantMakeSapling(gridNew.Get(posi), state):
                 grassNabu = True
                 possibleOld.append(posi)
 
         if grassNabu:
             parent = random.choice(possibleOld)
-            stateParentNew = gridNew.Get(stateNew.parent)
-            stateParent    = grid.Get(stateNew.parent)
+            stateParentNew = gridNew.Get(parent)
+            stateParent    = grid.Get(parent)
             if state.canPlantGrow(stateParent.color):
                 stateParent.plantMakeSapling(stateParentNew)
-                stateNew.setPlant(pg.Color(grid.Get(stateNew.parent).color), parent)
+                stateNew.setPlant(pg.Color(stateParent.color), parent)
                 mutateColor(stateNew.color)
 
         else:
@@ -113,17 +141,18 @@ def tickLogic(data: Data):# 180/s0
     if data.simulationTimer >= data.SimTickTime:
         data.simulationTimer -= data.SimTickTime
         simulationTick(data)
+        data.SimTickTime = data.NewSimTickTime
     data.framePercent = (data.simulationTimer % data.SimTickTime) / data.SimTickTime
 
 def drawSetup(D: Data):
     grid: GridBoard = D.board
     
     for x, y in grid:
-        outer = pg.Rect(x * D.cellWidth, y * D.cellHeight,
+        outer = sh.Rect(x * D.cellWidth, y * D.cellHeight,
                         D.cellWidth + 1, D.cellHeight + 1)
         D.outLineRects.append(outer)
 
-        inner = pg.Rect(x * D.cellWidth + D.cellMarginX,
+        inner = sh.Rect(x * D.cellWidth + D.cellMarginX,
                         y * D.cellHeight + D.cellMarginY,
                         D.cellWidth - 2 * D.cellMarginX,
                         D.cellHeight - 2 * D.cellMarginY)
@@ -141,10 +170,10 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
         water = grid.Get(x,y).waterPercent
         waterOld = gridOld.Get(x,y).waterPercent
         water = lerp(waterOld, water, lerpVal)
-        pg.draw.rect(window, newColor.lerp(waterColor, max(min(water, 1), 0)), D.outLineRects[x + y * grid.Width])
+        D.outLineRects[x + y * grid.Width].draw(window, newColor.lerp(waterColor, max(min(water, 1), 0)), 0)
         
     for x, y in grid:
-        inner : pg.Rect = D.innerRects[x + y * grid.Width]
+        inner : sh.Rect = D.innerRects[x + y * grid.Width]
         state : GridState = grid.Get(x, y)
         oldState : GridState = gridOld.Get(x, y)
 
@@ -157,6 +186,7 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
 
             if manhattanDistance(state.parent, (x,y)) <= 2:
                 nX, nY = lerpPos(state.parent, (x,y), posLerp)
+                inner.rotation = lerp(0, math.radians(18000), posLerp)
             else:
                 richtung = (((x + 1) % grid.Width ) - ((state.parent[0] + 1) % grid.Width ),
                             ((y + 1) % grid.Height) - ((state.parent[1] + 1) % grid.Height))
@@ -165,38 +195,41 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
                 else:
                     nX, nY = lerpPos(subPos((x,y), richtung), (x, y), posLerp)
 
-            nX, nY = (nX * D.cellWidth + D.cellMarginX, nY * D.cellHeight + D.cellMarginY)
-            inner.top, inner.left = lerpPos((nX + D.cellWidth * (1 - smallpercent) / 2,
-                            nY + D.cellHeight * (1 - smallpercent) / 2), (nX, nY), sizeLerp)
             width = D.cellWidth - 2 * D.cellMarginX
             height = D.cellHeight - 2 * D.cellMarginY
+            nX, nY = (nX * D.cellWidth + D.cellMarginX, nY * D.cellHeight + D.cellMarginY)
+            inner.y, inner.x = lerpPos((nX + width * (1 - smallpercent) / 2,
+                            nY + height * (1 - smallpercent) / 2), (nX, nY), sizeLerp)
 
             
-            inner.width = lerp(width - D.cellWidth * (1 - smallpercent), width, sizeLerp)
-            inner.height = lerp(height - D.cellHeight * (1 - smallpercent), height, sizeLerp)
-            pg.draw.rect(window, state.color, inner,
-                        0, int((D.cellMarginX + D.cellHeight) / 15))
+            inner.width = lerp(width * smallpercent, width, sizeLerp)
+            inner.height = lerp(height * smallpercent, height, sizeLerp)
+            borderRadius = D.cellMarginX / 2
+            borderRadius = lerp(borderRadius * smallpercent, borderRadius, sizeLerp)
+            inner.draw(window, state.color, int(borderRadius))
                 
         # Plant dies
         elif (state.type == GridTypes.Ground and
             oldState.type == GridTypes.Plant):
             sizeLerp = easeInOutSine(lerpVal)
 
-            smallpercent = 0.2
+            smallpercent = 0
             nX, nY = (x * D.cellWidth + D.cellMarginX, y * D.cellHeight + D.cellMarginY)
-            inner.top, inner.left = lerpPos((nX, nY), (nX + D.cellWidth * (1 - smallpercent) / 2,
-                            nY + D.cellHeight * (1 - smallpercent) / 2), sizeLerp)
             width = D.cellWidth - 2 * D.cellMarginX
             height = D.cellHeight - 2 * D.cellMarginY
+            inner.y, inner.x = lerpPos((nX, nY), (nX + width * (1 - smallpercent) / 2,
+                            nY + height * (1 - smallpercent) / 2), sizeLerp)
             
-            inner.width = lerp(width, width - D.cellWidth * (1 - smallpercent), sizeLerp)
-            inner.height = lerp(height, height - D.cellHeight * (1 - smallpercent), sizeLerp)
-            pg.draw.rect(window, state.color, inner,
-                        0, int((D.cellMarginX + D.cellHeight) / 15))
+            inner.width = lerp(width, width * smallpercent, sizeLerp)
+            inner.height = lerp(height, height * smallpercent, sizeLerp)
+            borderRadius = D.cellMarginX / 2
+            borderRadius = lerp(borderRadius, borderRadius * smallpercent, sizeLerp)
+            inner.rotation = lerp(0, math.pi * 2, sizeLerp)
+            inner.draw(window, state.color, int(borderRadius))
+            
             
         elif state.type != GridTypes.Ground:
-            pg.draw.rect(window, state.color, inner,
-                        0, int((D.cellMarginX + D.cellHeight) / 15))
+            inner.draw(window, state.color, int(D.cellMarginX / 2))
 
 
 
@@ -211,8 +244,15 @@ def mainLoop():
                 running = False
             if event.type == pg.MOUSEBUTTONDOWN:
                 running = False
+                
+        keys = pg.key.get_pressed()
+        
+        if keys[pg.K_UP]:
+            data.NewSimTickTime /= 2
+        if keys[pg.K_DOWN]:
+            data.NewSimTickTime *= 2
 
-        #window.fill('black')
+        window.fill('black')
 
         tickLogic(data)
         tickDraw(window, data)
