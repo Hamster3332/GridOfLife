@@ -17,7 +17,7 @@ def easeOutCubic(x: float) -> float:
 def lerp(a, b, lerp):
     if lerp < 0 : return a
     if lerp > 1 : return b
-    return a + (b - a)* lerp
+    return a + (b - a) * lerp
 
 def lerpPos(a, b, Lerp):
     return (lerp(a[0], b[0], Lerp), lerp(a[1], b[1], Lerp))

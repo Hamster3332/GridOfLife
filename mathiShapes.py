@@ -2,7 +2,6 @@ import pygame as pg
 import math
 import random
 
-pg.Vector2
 
 class Point:
     def __init__(s, x, y = 0):

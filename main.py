@@ -9,12 +9,15 @@ pg.init()
 WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 1400
 GRID_WIDTH = 10
-GRID_HEIGHT = 10
+GRID_HEIGHT = 20
 
 ## TODO
 # - Schatten von Bergen
-# - GRID_WIDTH und GRID_HEIGHT wenn unterschiedlich skalierung und pos fix
 # - Tiere
+#
+## DONE
+# - GRID_WIDTH und GRID_HEIGHT wenn unterschiedlich skalierung und pos fix DONE
+#
 
 window = pg.display.set_mode((WINDOW_WIDTH, WINDOW_HEIGHT))
 
@@ -186,7 +189,7 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
 
             if manhattanDistance(state.parent, (x,y)) <= 2:
                 nX, nY = lerpPos(state.parent, (x,y), posLerp)
-                inner.rotation = lerp(0, math.radians(18000), posLerp)
+                inner.rotation = lerp(0, math.radians(random.randint(0, 359)), posLerp)
             else:
                 richtung = (((x + 1) % grid.Width ) - ((state.parent[0] + 1) % grid.Width ),
                             ((y + 1) % grid.Height) - ((state.parent[1] + 1) % grid.Height))
@@ -198,12 +201,14 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
             width = D.cellWidth - 2 * D.cellMarginX
             height = D.cellHeight - 2 * D.cellMarginY
             nX, nY = (nX * D.cellWidth + D.cellMarginX, nY * D.cellHeight + D.cellMarginY)
-            inner.y, inner.x = lerpPos((nX + width * (1 - smallpercent) / 2,
+
+            inner.x, inner.y = lerpPos((nX + width * (1 - smallpercent) / 2,
                             nY + height * (1 - smallpercent) / 2), (nX, nY), sizeLerp)
 
             
             inner.width = lerp(width * smallpercent, width, sizeLerp)
             inner.height = lerp(height * smallpercent, height, sizeLerp)
+
             borderRadius = D.cellMarginX / 2
             borderRadius = lerp(borderRadius * smallpercent, borderRadius, sizeLerp)
             inner.draw(window, state.color, int(borderRadius))
@@ -217,7 +222,7 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
             nX, nY = (x * D.cellWidth + D.cellMarginX, y * D.cellHeight + D.cellMarginY)
             width = D.cellWidth - 2 * D.cellMarginX
             height = D.cellHeight - 2 * D.cellMarginY
-            inner.y, inner.x = lerpPos((nX, nY), (nX + width * (1 - smallpercent) / 2,
+            inner.x, inner.y = lerpPos((nX, nY), (nX + width * (1 - smallpercent) / 2,
                             nY + height * (1 - smallpercent) / 2), sizeLerp)
             
             inner.width = lerp(width, width * smallpercent, sizeLerp)
