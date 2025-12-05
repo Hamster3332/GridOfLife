@@ -6,14 +6,16 @@ import mathiShapes as sh
 
 pg.init()
 
-WINDOW_WIDTH = 1400
-WINDOW_HEIGHT = 1400
+WINDOW_WIDTH = 1200
+WINDOW_HEIGHT = 1200
 GRID_WIDTH = 10
-GRID_HEIGHT = 20
+GRID_HEIGHT = 10
 
 ## TODO
-# - Schatten von Bergen
-# - Tiere
+# - panning and zooming around (screensaver) @Qwertious :D
+# - Regen Animation = rain animation
+# - Schatten von Bergen = shadow of the mountains (so its a 3D effect)
+# - Tiere (animals)
 #
 ## DONE
 # - GRID_WIDTH und GRID_HEIGHT wenn unterschiedlich skalierung und pos fix DONE
@@ -46,6 +48,7 @@ class Data:
         s.boardOld: GridBoard = GridBoard(GRID_WIDTH, GRID_HEIGHT)
         s.outLineRects: list[sh.Rect] = []
         s.innerRects: list[sh.Rect] = []
+        s.mountainShadows = list[sh.Rect]
         s.simulationTimer: int = 0
         s.board.populate()
         s.framePercent: float = 0
@@ -189,7 +192,7 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
 
             if manhattanDistance(state.parent, (x,y)) <= 2:
                 nX, nY = lerpPos(state.parent, (x,y), posLerp)
-                inner.rotation = lerp(0, math.radians(random.randint(0, 359)), posLerp)
+                inner.rotation = lerp(0, math.radians(180), posLerp)
             else:
                 richtung = (((x + 1) % grid.Width ) - ((state.parent[0] + 1) % grid.Width ),
                             ((y + 1) % grid.Height) - ((state.parent[1] + 1) % grid.Height))

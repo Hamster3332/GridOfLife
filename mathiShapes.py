@@ -1,6 +1,5 @@
 import pygame as pg
 import math
-import random
 
 
 class Point:
@@ -42,7 +41,7 @@ class Point:
     
     def get(s):
         return (s.x, s.y) 
-    
+
 class Rect:
     def __init__(s, x, y, width, height, border = 0, rotation = 0):
         s.y = y
@@ -53,7 +52,7 @@ class Rect:
 
         s.rotation = rotation
     
-    def draw(s, window, color : pg.color, border = None):
+    def draw(s, window, color : pg.Color, border = None):
         s.borderR = border
         center = (s.x + (s.width/2), s.y + (s.height/2))
         topLeft = Point(s.x, s.y)
@@ -72,8 +71,31 @@ class Rect:
                                        topRight.Cadd((0, s.borderR)).rotateAround(center, s.rotation).get(),
                                        topRight.Cadd((-s.borderR, 0)).rotateAround(center, s.rotation).get()
                                     ])
-        if (border != 0):
+        if (border != 0 and border != None):
             pg.draw.circle(window, color, topLeft.add((s.borderR,s.borderR)).rotateAround(center, s.rotation).get(), s.borderR)
             pg.draw.circle(window, color, topRight.add((-s.borderR,s.borderR)).rotateAround(center, s.rotation).get(), s.borderR)
             pg.draw.circle(window, color, downRight.add((-s.borderR,-s.borderR)).rotateAround(center, s.rotation).get(), s.borderR)
             pg.draw.circle(window, color, downLeft.add((s.borderR,-s.borderR)).rotateAround(center, s.rotation).get(), s.borderR)
+
+    def getCornerPoints(s):
+        topLeft = Point(s.x, s.y)
+        topRight = topLeft.Cadd((s.width, 0))
+        downLeft = topLeft.Cadd((0, s.height))
+        downRight = topLeft.Cadd((s.width, s.height))
+        return [topLeft.get(), topRight.get(), downLeft.get(), downRight.get()]
+
+
+class Polygon:
+    def __init__(self, static_points, outer_points):
+        if type(static_points) == Rect:
+            self.static_points = static_points.getCornerPoints()
+        else:
+            self.static_points = static_points
+        if type(outer_points) == Rect:
+            self.points = outer_points.getCornerPoints()
+        else:
+            self.points = outer_points
+
+    def draw(self, window, color : pg.Color):
+        points = self.static_points + self.points
+        pg.draw.polygon(window, color, self.static_points)
