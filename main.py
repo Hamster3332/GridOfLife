@@ -48,7 +48,7 @@ class Data:
         s.boardOld: GridBoard = GridBoard(GRID_WIDTH, GRID_HEIGHT)
         s.outLineRects: list[sh.Rect] = []
         s.innerRects: list[sh.Rect] = []
-        s.mountainShadows = list[sh.Rect]
+        s.mountainShadows: list[sh.Polygon] = []
         s.simulationTimer: int = 0
         s.board.populate()
         s.framePercent: float = 0
@@ -158,6 +158,12 @@ def drawSetup(D: Data):
                         D.cellWidth + 1, D.cellHeight + 1)
         D.outLineRects.append(outer)
 
+        shadowRect = outer.copy()
+        shadowRect.x += 50
+        shadowRect.y += 50
+        shadow = sh.Polygon(outer, shadowRect)
+        D.mountainShadows.append(shadow)
+
         inner = sh.Rect(x * D.cellWidth + D.cellMarginX,
                         y * D.cellHeight + D.cellMarginY,
                         D.cellWidth - 2 * D.cellMarginX,
@@ -177,6 +183,7 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
         waterOld = gridOld.Get(x,y).waterPercent
         water = lerp(waterOld, water, lerpVal)
         D.outLineRects[x + y * grid.Width].draw(window, newColor.lerp(waterColor, max(min(water, 1), 0)), 0)
+
         
     for x, y in grid:
         inner : sh.Rect = D.innerRects[x + y * grid.Width]
@@ -238,6 +245,9 @@ def tickDraw(window: pg.Surface, D: Data):# 180/s
             
         elif state.type != GridTypes.Ground:
             inner.draw(window, state.color, int(D.cellMarginX / 2))
+
+    shadowColor = pg.Color(30, 30, 30, 50)
+    D.mountainShadows[13].draw(window, shadowColor)
 
 
 

@@ -1,5 +1,6 @@
 import pygame as pg
 import math
+import copy
 
 
 class Point:
@@ -82,7 +83,10 @@ class Rect:
         topRight = topLeft.Cadd((s.width, 0))
         downLeft = topLeft.Cadd((0, s.height))
         downRight = topLeft.Cadd((s.width, s.height))
-        return [topLeft.get(), topRight.get(), downLeft.get(), downRight.get()]
+        return [topLeft.get(), topRight.get(), downRight.get(), downLeft.get()]
+
+    def copy(self):
+        return copy.deepcopy(self)
 
 
 class Polygon:
@@ -92,10 +96,37 @@ class Polygon:
         else:
             self.static_points = static_points
         if type(outer_points) == Rect:
-            self.points = outer_points.getCornerPoints()
+            self.outer_points = outer_points.getCornerPoints()
         else:
-            self.points = outer_points
+            self.outer_points = outer_points
+        # IN SEQUENCE: topleft, topright, downright, downleft
+        self.points = self.static_points + self.outer_points
+
 
     def draw(self, window, color : pg.Color):
-        points = self.static_points + self.points
-        pg.draw.polygon(window, color, self.static_points)
+        polyPoints = []
+        for p in self.points:
+            xGt = False
+            xLt = False
+            yGt = False
+            yLt = False
+            for p2 in self.points:
+                if p != p2:
+                    if not xGt:
+                        xGt = p[0] > p2[0]
+                    if not xLt:
+                        xLt = p[0] < p2[0]
+                    if not yGt:
+                        yGt = p[1] > p2[1]
+                    if not yLt:
+                        yLt = p[1] < p2[1]
+            totalValue = 0
+            if xGt: totalValue += 1
+            if xLt: totalValue += 1
+            if yGt: totalValue += 1
+            if yLt: totalValue += 1
+
+            if totalValue != 4:
+                polyPoints.append(p)
+
+        pg.draw.polygon(window, color, polyPoints)
